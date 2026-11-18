@@ -70,3 +70,19 @@ patches:
       - op: replace
         path: /spec/tls/0/hosts/0
         value: dhaba-production.duckdns.org
+      - op: add
+        path: /spec/tls/0/hosts/-
+        value: visionaryrebels-production.duckdns.org
+      - op: add
+        path: /spec/rules/-
+        value:
+          host: visionaryrebels-production.duckdns.org
+          http:
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: web
+                    port:
+                      name: http

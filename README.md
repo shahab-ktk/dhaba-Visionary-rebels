@@ -86,12 +86,13 @@ Set the DuckDNS A records to these Elastic IPs:
 
 | Environment | Hostname | Static IPv4 |
 |---|---|---|
-| Staging | `dhaba-staging.duckdns.org` | `51.21.36.232` |
-| Production | `dhaba-production.duckdns.org` | `56.228.87.179` |
+| Staging | `dhaba-staging.duckdns.org`, `visionaryrebels-staging.duckdns.org` | `51.21.36.232` |
+| Production | `dhaba-production.duckdns.org`, `visionaryrebels-production.duckdns.org` | `56.228.87.179` |
 
 These web Services currently expose HTTP on port 80. The cert-manager
 configuration for the shared Ingress controller does not terminate TLS on
-these direct NLB endpoints; do not use HTTPS until TLS is configured for them.
+these direct NLB endpoints; add both aliases to the matching DuckDNS IP record
+and do not use HTTPS until TLS is configured for them.
 Each NLB is in one Availability Zone to provide exactly one IP, so an outage in
 that zone will interrupt the corresponding environment.
 
