@@ -74,37 +74,27 @@ controller and cert-manager, then deploy with:
 
 The worker nodes are `t3.small` instances with an 11-pod limit. The current
 cluster runs staging and production; production has separate database and Redis
-volumes. Both environments are routed through the public NGINX load balancer,
-and their web Services each have a separate public AWS load balancer for
-immediate direct access before DNS is configured.
+volumes. Each environment gets a static public IPv4 address via an Elastic-IP
+backed Network Load Balancer in one Availability Zone.
 The app has no authentication and its order API returns customer names and
 order details, so do not use real customer data until authentication is added.
 The load balancers and worker nodes incur ongoing AWS charges.
 
     kubectl apply -k k8s/overlays/production
 
-The public NGINX load balancer routes `staging.visionaryrebels.com` to staging,
-and `visionaryrebels.com` plus `www.visionaryrebels.com` to production. It is an
-AWS load balancer hostname, not a fixed IP. Add CNAME records for
-`staging.visionaryrebels.com` and `www.visionaryrebels.com` pointing to the load
-balancer hostname. For the apex `visionaryrebels.com`, use your DNS provider's
-ALIAS/ANAME or flattening feature. After DNS resolves publicly, cert-manager
-obtains and renews Let's Encrypt certificates automatically. HTTPS will not be
-ready until DNS points to the load balancer. Retrieve the current target with:
+Set the DuckDNS A records to these Elastic IPs:
 
-    kubectl get svc -n ingress-nginx ingress-nginx-controller \
-      -o jsonpath='{.status.loadBalancer.ingress[0].hostname}{"\n"}'
+| Environment | Hostname | Static IPv4 |
+|---|---|---|
+| Staging | `dhaba-staging.duckdns.org`, `visionaryrebels-staging.duckdns.org` | `51.21.36.232` |
+| Production | `dhaba-production.duckdns.org`, `visionaryrebels-production.duckdns.org` | `56.228.87.179` |
 
-For direct public HTTP links before DNS is configured, retrieve each web
-Service's AWS hostname (these are not fixed IPs):
-
-    kubectl get svc -n staging web \
-      -o jsonpath='http://{.status.loadBalancer.ingress[0].hostname}{"\n"}'
-    kubectl get svc -n production web \
-      -o jsonpath='http://{.status.loadBalancer.ingress[0].hostname}{"\n"}'
-
-These direct links are HTTP-only. Use the domain links for HTTPS after DNS and
-certificate issuance complete.
+These web Services currently expose HTTP on port 80. The cert-manager
+configuration for the shared Ingress controller does not terminate TLS on
+these direct NLB endpoints; add both aliases to the matching DuckDNS IP record
+and do not use HTTPS until TLS is configured for them.
+Each NLB is in one Availability Zone to provide exactly one IP, so an outage in
+that zone will interrupt the corresponding environment.
 
 The overlays pin application images to the verified commit tag. Update the
 `images` and `APP_VERSION` values in both overlays when deploying a later
@@ -114,7 +104,7 @@ For local smoke testing, forward the Ingress controller to localhost and send
 the staging host header:
 
     kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 8080:80
-    curl -H 'Host: staging.visionaryrebels.com' http://127.0.0.1:8080/
+    curl -H 'Host: dhaba-staging.duckdns.org' http://127.0.0.1:8080/
 
 Each environment keeps separate database and Redis volumes. Do not copy a
 production secret into Git or use the staging database for production. The

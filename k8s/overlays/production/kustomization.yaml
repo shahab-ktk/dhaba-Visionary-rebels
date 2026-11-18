@@ -25,12 +25,20 @@ patches:
       kind: Service
       name: web
     patch: |-
-      - op: replace
+      - op: add
         path: /spec/type
         value: LoadBalancer
       - op: replace
         path: /spec/ports/0/port
         value: 80
+      - op: add
+        path: /metadata/annotations
+        value:
+          service.beta.kubernetes.io/aws-load-balancer-type: external
+          service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: instance
+          service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+          service.beta.kubernetes.io/aws-load-balancer-subnets: subnet-0a2cef7da7bfeb097
+          service.beta.kubernetes.io/aws-load-balancer-eip-allocations: eipalloc-0c0fc8bf5446475f2
   - target:
       version: v1
       kind: ConfigMap
@@ -58,17 +66,17 @@ patches:
     patch: |-
       - op: replace
         path: /spec/rules/0/host
-        value: visionaryrebels.com
+        value: dhaba-production.duckdns.org
       - op: replace
         path: /spec/tls/0/hosts/0
-        value: visionaryrebels.com
+        value: dhaba-production.duckdns.org
       - op: add
         path: /spec/tls/0/hosts/-
-        value: www.visionaryrebels.com
+        value: visionaryrebels-production.duckdns.org
       - op: add
         path: /spec/rules/-
         value:
-          host: www.visionaryrebels.com
+          host: visionaryrebels-production.duckdns.org
           http:
             paths:
               - path: /
