@@ -27,11 +27,6 @@ export default function KitchenScreen() {
   }, [load])
 
   if (loading) return <div className="center-msg">Loading orders...</div>
-  if (error) return <div className="center-msg error-msg">{error}</div>
-  if (orders.length === 0) {
-    return <div className="center-msg">No orders yet. Place one on the Order tab.</div>
-  }
-
   const byStatus = STATUS_ORDER.reduce((acc, s) => {
     acc[s] = orders.filter(o => o.status === s)
     return acc
@@ -39,6 +34,20 @@ export default function KitchenScreen() {
 
   return (
     <div className="kitchen-screen">
+      <header className="app-page-intro kitchen-intro">
+        <div>
+          <p className="app-eyebrow">THE HEART OF THE HOUSE</p>
+          <h1>Kitchen service.</h1>
+          <p>Every order, right where it needs to be. This board refreshes automatically.</p>
+        </div>
+        <span className="service-status"><i /> Live board</span>
+      </header>
+      {error && (
+        <div className="banner banner-error" role="alert">
+          {error}
+          <button className="btn btn-retry" type="button" onClick={load}>Try again</button>
+        </div>
+      )}
       <div className="kitchen-cols">
         {STATUS_ORDER.map(status => (
           <div key={status} className={`kitchen-col kitchen-col-${status}`}>
@@ -48,7 +57,7 @@ export default function KitchenScreen() {
             </h2>
             <div className="kitchen-cards">
               {byStatus[status].length === 0 ? (
-                <p className="empty-col">-</p>
+                <p className="empty-col">Nothing here just yet.</p>
               ) : (
                 byStatus[status].map(order => (
                   <div key={order.id} className="kitchen-card">
@@ -77,7 +86,7 @@ export default function KitchenScreen() {
           </div>
         ))}
       </div>
-      <p className="refresh-note">Refreshes every 5 seconds</p>
+      <p className="refresh-note"><span className="live-dot" /> Updates every 5 seconds</p>
     </div>
   )
 }

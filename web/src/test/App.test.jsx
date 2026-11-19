@@ -16,6 +16,8 @@ function mockFetch(routes) {
   )
 }
 
+beforeEach(() => window.history.replaceState(null, '', '/app'))
+
 afterEach(() => vi.unstubAllGlobals())
 
 test('shows the menu and adds an item to the cart', async () => {
@@ -33,7 +35,7 @@ test('place order button stays disabled without a name', async () => {
 
   await screen.findByText('Naan')
   fireEvent.click(screen.getAllByText('Add')[1])
-  expect(screen.getByRole('button', { name: 'Place order' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Send to the kitchen' })).toBeDisabled()
 })
 
 test('kitchen tab groups orders by status', async () => {

@@ -4,13 +4,17 @@ Seven services, each in its own folder with its own Dockerfile. Build each into 
 
 | Folder | Kind | Stack | Port | Job |
 |---|---|---|---|---|
-| `web` | Stateless | React (Vite) on Nginx | 8080 | Order page, kitchen screen, stats panel; proxies `/api/*` |
+| `web` | Stateless | React (Vite) on Nginx | 8080 | Team-project showcase at `/`; restaurant ordering app at `/app`; kitchen and stats; proxies `/api/*` |
 | `menu-api` | Stateless | Python, FastAPI | 8000 | Menu from Postgres, cached in Redis |
 | `orders-api` | Stateless | Go | 8080 | Saves orders, queues jobs, writes stats. `/info` shows version and pod |
 | `kitchen-worker` | Stateless, no web port | Java, Spring Boot | none | Takes queue jobs, moves orders new, cooking, ready |
 | `stats-api` | Stateless | PHP, Laravel 13 | 9000 | Orders per minute and top dishes from Redis |
 | `postgres` | Stateful | PostgreSQL 16 | 5432 | Orders and menu. Volume at `/var/lib/postgresql/data` |
 | `redis` | Stateful | Redis 7 | 6379 | Cache and job queue. Volume at `/data` |
+
+The root page preserves the Visionary Rebels team-project showcase. Its
+**Explore the Dhaba Orders app** button opens the live restaurant ordering UI
+at `/app`.
 
 ## Data flow
 

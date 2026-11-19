@@ -31,6 +31,14 @@ export default function StatsPanel() {
 
   return (
     <div className="stats-panel">
+      <header className="app-page-intro">
+        <div>
+          <p className="app-eyebrow">A LITTLE LOOK BEHIND THE SCENES</p>
+          <h1>Today at the dhaba.</h1>
+          <p>Live service stats, refreshed every few seconds.</p>
+        </div>
+        <span className="service-status"><i /> Live stats</span>
+      </header>
       <div className="stat-tile">
         <div className="stat-value">{stats.orders_per_minute}</div>
         <div className="stat-label">Orders in the last minute</div>
