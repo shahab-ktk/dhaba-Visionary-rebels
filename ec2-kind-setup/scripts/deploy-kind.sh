@@ -29,7 +29,22 @@ kubectl --kubeconfig "$temporary_kubeconfig" config set-context pipeline-deploye
 kubectl --kubeconfig "$temporary_kubeconfig" config use-context pipeline-deployer >/dev/null
 
 IFS=',' read -r -a services <<< "$services_csv"
+ordered_services=()
+for dependency in postgres redis; do
+    for service in "${services[@]}"; do
+        if [[ "$service" == "$dependency" ]]; then
+            ordered_services+=("$service")
+        fi
+    done
+done
 for service in "${services[@]}"; do
+    case "$service" in
+        postgres|redis) ;;
+        *) ordered_services+=("$service") ;;
+    esac
+done
+
+for service in "${ordered_services[@]}"; do
     [[ -n "$service" ]] || continue
     image="${registry}/${service}:${tag}"
     case "$service" in
