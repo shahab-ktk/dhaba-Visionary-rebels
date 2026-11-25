@@ -1,0 +1,49 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: web
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: web
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: menu-api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: menu-api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: orders-api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: orders-api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kitchen-worker
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: kitchen-worker
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: stats-api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: stats-api

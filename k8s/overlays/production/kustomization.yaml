@@ -7,46 +7,23 @@ resources:
   - namespace.yaml
   - ../../base
 
-images:
-  - name: 940482421289.dkr.ecr.eu-north-1.amazonaws.com/dhaba-visionary-rebel/web
-    newTag: bf39c2f0570b2ab90805229d1d4888b515bd7219
-  - name: 940482421289.dkr.ecr.eu-north-1.amazonaws.com/dhaba-visionary-rebel/menu-api
-    newTag: bf39c2f0570b2ab90805229d1d4888b515bd7219
-  - name: 940482421289.dkr.ecr.eu-north-1.amazonaws.com/dhaba-visionary-rebel/orders-api
-    newTag: bf39c2f0570b2ab90805229d1d4888b515bd7219
-  - name: 940482421289.dkr.ecr.eu-north-1.amazonaws.com/dhaba-visionary-rebel/kitchen-worker
-    newTag: bf39c2f0570b2ab90805229d1d4888b515bd7219
-  - name: 940482421289.dkr.ecr.eu-north-1.amazonaws.com/dhaba-visionary-rebel/stats-api
-    newTag: bf39c2f0570b2ab90805229d1d4888b515bd7219
-
 patches:
   - target:
+      group: networking.k8s.io
       version: v1
-      kind: Service
-      name: web
+      kind: Ingress
+      name: dhaba
     patch: |-
-      - op: add
-        path: /spec/type
-        value: LoadBalancer
       - op: replace
-        path: /spec/ports/0/port
-        value: 80
-      - op: add
-        path: /metadata/annotations
-        value:
-          service.beta.kubernetes.io/aws-load-balancer-type: external
-          service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: instance
-          service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
-          service.beta.kubernetes.io/aws-load-balancer-subnets: subnet-0a2cef7da7bfeb097
-          service.beta.kubernetes.io/aws-load-balancer-eip-allocations: eipalloc-0c0fc8bf5446475f2
+        path: /spec/rules/0/host
+        value: dhaba-production.example.com
+      - op: remove
+        path: /spec/tls
   - target:
       version: v1
       kind: ConfigMap
       name: dhaba-config
     patch: |-
-      - op: replace
-        path: /data/APP_VERSION
-        value: bf39c2f0570b2ab90805229d1d4888b515bd7219
       - op: replace
         path: /data/NGINX_SERVICE_DOMAIN
         value: .production.svc.cluster.local
@@ -57,32 +34,4 @@ patches:
     patch: |-
       - op: replace
         path: /spec/replicas
-        value: 2
-  - target:
-      group: networking.k8s.io
-      version: v1
-      kind: Ingress
-      name: dhaba
-    patch: |-
-      - op: replace
-        path: /spec/rules/0/host
-        value: dhaba-production.duckdns.org
-      - op: replace
-        path: /spec/tls/0/hosts/0
-        value: dhaba-production.duckdns.org
-      - op: add
-        path: /spec/tls/0/hosts/-
-        value: visionaryrebels-production.duckdns.org
-      - op: add
-        path: /spec/rules/-
-        value:
-          host: visionaryrebels-production.duckdns.org
-          http:
-            paths:
-              - path: /
-                pathType: Prefix
-                backend:
-                  service:
-                    name: web
-                    port:
-                      name: http
+        value: 1

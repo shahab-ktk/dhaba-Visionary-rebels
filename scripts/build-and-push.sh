@@ -67,10 +67,6 @@ for svc in "${SERVICES[@]}"; do
     echo "=== ${svc} -> ${image}"
 
     if [ "$svc" = "ops-monitor" ]; then
-        if [ ! -d scripts/monitor ]; then
-            echo "skipped: scripts/monitor/ does not exist yet (the monitoring scripts come in Phase 5)"
-            continue
-        fi
         if [ -n "${KUBECTL_VERSION:-}" ]; then
             args+=(--build-arg "KUBECTL_VERSION=${KUBECTL_VERSION}")
         fi

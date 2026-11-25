@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: staging
+
+resources:
+  - namespace.yaml
+  - ../../base
+
+patches:
+  - target:
+      group: networking.k8s.io
+      version: v1
+      kind: Ingress
+      name: dhaba
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: dhaba-staging.example.com
+      - op: remove
+        path: /spec/tls
+  - target:
+      version: v1
+      kind: ConfigMap
+      name: dhaba-config
+    patch: |-
+      - op: replace
+        path: /data/NGINX_SERVICE_DOMAIN
+        value: .staging.svc.cluster.local

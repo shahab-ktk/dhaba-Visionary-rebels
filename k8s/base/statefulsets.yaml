@@ -16,9 +16,11 @@ spec:
         app: postgres
     spec:
       terminationGracePeriodSeconds: 30
+      imagePullSecrets:
+        - name: ecr-registry
       containers:
         - name: postgres
-          image: 940482421289.dkr.ecr.eu-north-1.amazonaws.com/dhaba-visionary-rebel/postgres:be6c64e328398d91433041201f45c2dc8c2d6b0e
+          image: 542811240173.dkr.ecr.ap-southeast-2.amazonaws.com/dhaba-visionary-rebel/postgres:be6c64e328398d91433041201f45c2dc8c2d6b0e
           ports:
             - name: postgres
               containerPort: 5432
@@ -77,7 +79,7 @@ spec:
         name: data
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: gp3
+        storageClassName: local-path
         resources:
           requests:
             storage: 5Gi
@@ -100,9 +102,11 @@ spec:
         app: redis
     spec:
       terminationGracePeriodSeconds: 30
+      imagePullSecrets:
+        - name: ecr-registry
       containers:
         - name: redis
-          image: 940482421289.dkr.ecr.eu-north-1.amazonaws.com/dhaba-visionary-rebel/redis:be6c64e328398d91433041201f45c2dc8c2d6b0e
+          image: 542811240173.dkr.ecr.ap-southeast-2.amazonaws.com/dhaba-visionary-rebel/redis:be6c64e328398d91433041201f45c2dc8c2d6b0e
           ports:
             - name: redis
               containerPort: 6379
@@ -134,7 +138,7 @@ spec:
         name: data
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: gp3
+        storageClassName: local-path
         resources:
           requests:
             storage: 2Gi

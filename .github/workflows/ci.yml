@@ -134,6 +134,13 @@ jobs:
             docker run --rm -i ghcr.io/yannh/kubeconform:v0.6.7 \
               -strict -summary - < "/tmp/${overlay}.yaml"
           done
+          kubectl kustomize k8s/ops > /tmp/ops.yaml
+          docker run --rm -i ghcr.io/yannh/kubeconform:v0.6.7 \
+            -strict -summary - < /tmp/ops.yaml
+          docker run --rm -i ghcr.io/yannh/kubeconform:v0.6.7 \
+            -strict -summary - < k8s/rbac/pipeline-access.yaml
+          docker run --rm -i ghcr.io/yannh/kubeconform:v0.6.7 \
+            -strict -summary - < k8s/ops/access.yaml
 
   build-and-push:
     name: Build, scan, and push changed images
@@ -147,9 +154,10 @@ jobs:
       - dockerfiles-and-shell
       - kubernetes-manifests
     runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.changed.outputs.services }}
     permissions:
       contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -173,29 +181,30 @@ jobs:
 
           if ! git diff --quiet "$BEFORE_SHA" "$CURRENT_SHA" -- scripts/build-and-push.sh; then
             services=(web menu-api orders-api kitchen-worker stats-api postgres redis)
-            if [[ -d scripts/monitor ]]; then
+            if [[ -d k8s/ops/scripts ]]; then
               services+=(ops-monitor)
             fi
-          elif [[ -d scripts/monitor ]] &&
-               ! git diff --quiet "$BEFORE_SHA" "$CURRENT_SHA" -- ops-monitor/ scripts/monitor/; then
+          elif ! git diff --quiet "$BEFORE_SHA" "$CURRENT_SHA" -- ops-monitor/; then
             services+=(ops-monitor)
           fi
 
           services_json=$(jq -cn --args '$ARGS.positional' "${services[@]}")
           echo "services=$services_json" >> "$GITHUB_OUTPUT"
           echo "Changed services: ${services[*]:-none}"
-      - name: Configure AWS credentials with OIDC
+      - name: Configure AWS credentials from GitHub secrets
         if: steps.changed.outputs.services != '[]'
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN || 'arn:aws:iam::940482421289:role/GitHubActionsDhabaOrdersECR' }}
-          aws-region: ${{ vars.AWS_REGION || 'eu-north-1' }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
       - name: Build and push images
         if: steps.changed.outputs.services != '[]'
         env:
           TEAM: ${{ vars.TEAM || 'visionary-rebel' }}
-          AWS_REGION: ${{ vars.AWS_REGION || 'eu-north-1' }}
-          AWS_ACCOUNT: ${{ vars.AWS_ACCOUNT || '940482421289' }}
+          AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
+          AWS_ACCOUNT: ${{ vars.AWS_ACCOUNT }}
+          KUBECTL_VERSION: ${{ vars.KUBECTL_VERSION || 'v1.36.0' }}
           SERVICES_JSON: ${{ steps.changed.outputs.services }}
           GIT_SHA: ${{ github.sha }}
         run: |
@@ -205,8 +214,8 @@ jobs:
         if: steps.changed.outputs.services != '[]'
         env:
           TEAM: ${{ vars.TEAM || 'visionary-rebel' }}
-          AWS_REGION: ${{ vars.AWS_REGION || 'eu-north-1' }}
-          AWS_ACCOUNT: ${{ vars.AWS_ACCOUNT || '940482421289' }}
+          AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
+          AWS_ACCOUNT: ${{ vars.AWS_ACCOUNT }}
           SERVICES_JSON: ${{ steps.changed.outputs.services }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
@@ -280,3 +289,87 @@ jobs:
             echo "Critical ECR findings block this image set." >&2
             exit 1
           fi
+
+  deploy-staging:
+    name: Deploy to kind staging
+    if: needs.build-and-push.outputs.services != '' && needs.build-and-push.outputs.services != '[]'
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment: staging
+    steps:
+      - name: Configure staging AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
+      - name: Deploy and smoke test staging through SSM
+        env:
+          INSTANCE_ID: ${{ vars.KIND_INSTANCE_ID }}
+          IMAGE_TAG: ${{ github.sha }}
+          SERVICES_JSON: ${{ needs.build-and-push.outputs.services }}
+        run: |
+          test -n "$INSTANCE_ID"
+          services=$(jq -r 'join(",")' <<< "$SERVICES_JSON")
+          parameters=$(jq -cn --arg tag "$IMAGE_TAG" --arg services "$services" \
+            '{ImageTag:[$tag],Services:[$services]}')
+          command_id=$(aws ssm send-command --instance-ids "$INSTANCE_ID" \
+            --document-name DhabaKindDeployStaging --comment "Dhaba staging ${IMAGE_TAG}" \
+            --parameters "$parameters" --query 'Command.CommandId' --output text)
+          for attempt in {1..60}; do
+            status=$(aws ssm get-command-invocation --command-id "$command_id" \
+              --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || true)
+            case "$status" in
+              Success) exit 0 ;;
+              Failed|Cancelled|TimedOut|Undeliverable|Terminated)
+                aws ssm get-command-invocation --command-id "$command_id" --instance-id "$INSTANCE_ID"
+                exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "Timed out waiting for staging deployment command ${command_id}" >&2
+          exit 1
+
+  deploy-production:
+    name: Deploy to kind production
+    if: needs.build-and-push.outputs.services != '' && needs.build-and-push.outputs.services != '[]'
+    needs: [build-and-push, deploy-staging]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment: production
+    steps:
+      - name: Configure production AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
+      - name: Promote the staged commit to production through SSM
+        env:
+          INSTANCE_ID: ${{ vars.KIND_INSTANCE_ID }}
+          IMAGE_TAG: ${{ github.sha }}
+          SERVICES_JSON: ${{ needs.build-and-push.outputs.services }}
+        run: |
+          test -n "$INSTANCE_ID"
+          services=$(jq -r 'join(",")' <<< "$SERVICES_JSON")
+          parameters=$(jq -cn --arg tag "$IMAGE_TAG" --arg services "$services" \
+            '{ImageTag:[$tag],Services:[$services]}')
+          command_id=$(aws ssm send-command --instance-ids "$INSTANCE_ID" \
+            --document-name DhabaKindDeployProduction --comment "Dhaba production ${IMAGE_TAG}" \
+            --parameters "$parameters" --query 'Command.CommandId' --output text)
+          for attempt in {1..60}; do
+            status=$(aws ssm get-command-invocation --command-id "$command_id" \
+              --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || true)
+            case "$status" in
+              Success) exit 0 ;;
+              Failed|Cancelled|TimedOut|Undeliverable|Terminated)
+                aws ssm get-command-invocation --command-id "$command_id" --instance-id "$INSTANCE_ID"
+                exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "Timed out waiting for production deployment command ${command_id}" >&2
+          exit 1

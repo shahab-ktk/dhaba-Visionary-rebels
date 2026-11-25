@@ -6,6 +6,5 @@ resources:
   - deployments.yaml
   - services.yaml
   - statefulsets.yaml
-  - storageclass.yaml
   - ingress.yaml
   - pdb.yaml

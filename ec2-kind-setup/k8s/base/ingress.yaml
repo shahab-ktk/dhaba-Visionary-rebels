@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dhaba
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - dhaba.test
+      secretName: dhaba-tls
+  rules:
+    - host: dhaba.test
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  name: http
