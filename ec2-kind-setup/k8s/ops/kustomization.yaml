@@ -3,7 +3,6 @@ kind: Kustomization
 namespace: ops
 resources:
   - namespace.yaml
-  - access.yaml
   - workloads.yaml
 
 configMapGenerator:
