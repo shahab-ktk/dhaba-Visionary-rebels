@@ -30,6 +30,10 @@ kubectl cluster-info --context kind-dhaba
 kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.37/deploy/local-path-storage.yaml
 ```
 
+That provisioner creates the `local-path` StorageClass used by Postgres and
+Redis. The app manifests use that existing class instead of trying to change
+its immutable reclaim policy.
+
 The manifests currently use IngressClass `nginx`. The ingress-nginx project was
 retired in March 2026, so migrate these Ingress manifests to a maintained
 controller before exposing this cluster publicly. The EC2 port mappings in
