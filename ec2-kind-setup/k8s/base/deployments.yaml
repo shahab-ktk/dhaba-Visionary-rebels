@@ -1,0 +1,444 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: web
+      imagePullSecrets:
+        - name: ecr-registry
+      containers:
+        - name: web
+          image: 542811240173.dkr.ecr.ap-southeast-2.amazonaws.com/dhaba-visionary-rebel/web:be6c64e328398d91433041201f45c2dc8c2d6b0e-svc-dns
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: dhaba-config
+          resources:
+            requests:
+              cpu: 25m
+              memory: 48Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 101
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: menu-api
+  labels:
+    app: menu-api
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: menu-api
+  template:
+    metadata:
+      labels:
+        app: menu-api
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: menu-api
+      imagePullSecrets:
+        - name: ecr-registry
+      containers:
+        - name: menu-api
+          image: 542811240173.dkr.ecr.ap-southeast-2.amazonaws.com/dhaba-visionary-rebel/menu-api:be6c64e328398d91433041201f45c2dc8c2d6b0e
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dhaba-db
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dhaba-db
+                  key: DB_PASSWORD
+            - name: DATABASE_URL
+              value: postgresql://$(DB_USER):$(DB_PASSWORD)@postgres:5432/dhaba
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: dhaba-config
+                  key: REDIS_URL
+            - name: CACHE_TTL_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: dhaba-config
+                  key: CACHE_TTL_SECONDS
+            - name: APP_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: dhaba-config
+                  key: APP_VERSION
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              cpu: 300m
+              memory: 192Mi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-api
+  labels:
+    app: orders-api
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: orders-api
+  template:
+    metadata:
+      labels:
+        app: orders-api
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: orders-api
+      imagePullSecrets:
+        - name: ecr-registry
+      containers:
+        - name: orders-api
+          image: 542811240173.dkr.ecr.ap-southeast-2.amazonaws.com/dhaba-visionary-rebel/orders-api:be6c64e328398d91433041201f45c2dc8c2d6b0e
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dhaba-db
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dhaba-db
+                  key: DB_PASSWORD
+            - name: DATABASE_URL
+              value: postgres://$(DB_USER):$(DB_PASSWORD)@postgres:5432/dhaba?sslmode=disable
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: dhaba-config
+                  key: REDIS_URL
+            - name: PORT
+              value: "8080"
+            - name: APP_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: dhaba-config
+                  key: APP_VERSION
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 300m
+              memory: 192Mi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kitchen-worker
+  labels:
+    app: kitchen-worker
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: kitchen-worker
+  template:
+    metadata:
+      labels:
+        app: kitchen-worker
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: kitchen-worker
+      imagePullSecrets:
+        - name: ecr-registry
+      containers:
+        - name: kitchen-worker
+          image: 542811240173.dkr.ecr.ap-southeast-2.amazonaws.com/dhaba-visionary-rebel/kitchen-worker:be6c64e328398d91433041201f45c2dc8c2d6b0e
+          env:
+            - name: DB_URL
+              value: jdbc:postgresql://postgres:5432/dhaba
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dhaba-db
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dhaba-db
+                  key: DB_PASSWORD
+            - name: REDIS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: dhaba-config
+                  key: REDIS_URL
+            - name: COOK_MILLIS
+              valueFrom:
+                configMapKeyRef:
+                  name: dhaba-config
+                  key: COOK_MILLIS
+            - name: APP_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: dhaba-config
+                  key: APP_VERSION
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - test -n "$(find /tmp/kitchen-heartbeat -mmin -1)"
+            periodSeconds: 10
+            failureThreshold: 36
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - test -n "$(find /tmp/kitchen-heartbeat -mmin -1)"
+            periodSeconds: 15
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - test -n "$(find /tmp/kitchen-heartbeat -mmin -1)"
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stats-api
+  labels:
+    app: stats-api
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: stats-api
+  template:
+    metadata:
+      labels:
+        app: stats-api
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: stats-api
+      imagePullSecrets:
+        - name: ecr-registry
+      containers:
+        - name: stats-api
+          image: 542811240173.dkr.ecr.ap-southeast-2.amazonaws.com/dhaba-visionary-rebel/stats-api:be6c64e328398d91433041201f45c2dc8c2d6b0e-php84-redis
+          ports:
+            - name: http
+              containerPort: 9000
+          env:
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: dhaba-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: dhaba-config
+                  key: REDIS_PORT
+            - name: APP_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: dhaba-config
+                  key: APP_VERSION
+            - name: APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dhaba-app
+                  key: APP_KEY
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

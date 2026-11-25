@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dhaba-config
+data:
+  APP_VERSION: be6c64e328398d91433041201f45c2dc8c2d6b0e
+  CACHE_TTL_SECONDS: "300"
+  COOK_MILLIS: "5000"
+  DB_NAME: dhaba
+  NGINX_LOCAL_RESOLVERS: 10.100.0.10
+  NGINX_SERVICE_DOMAIN: ""
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_URL: redis://redis:6379

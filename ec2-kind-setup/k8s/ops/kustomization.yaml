@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ops
+resources:
+  - namespace.yaml
+  - access.yaml
+  - workloads.yaml
+
+configMapGenerator:
+  - name: monitor-scripts
+    files:
+      - run-checks.sh=scripts/run-checks.sh
+      - check-workloads.sh=scripts/check-workloads.sh
+      - check-database.sh=scripts/check-database.sh
+      - check-redis.sh=scripts/check-redis.sh
+    options:
+      disableNameSuffixHash: true
+  - name: ecr-refresh-script
+    files:
+      - refresh-ecr-secret.py
+    options:
+      disableNameSuffixHash: true

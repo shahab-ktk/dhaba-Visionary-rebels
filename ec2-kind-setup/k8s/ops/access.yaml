@@ -1,0 +1,184 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-monitor
+  namespace: ops
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ecr-secret-refresher
+  namespace: ops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: monitor-read
+  namespace: staging
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cluster-monitor
+  namespace: staging
+subjects:
+  - kind: ServiceAccount
+    name: cluster-monitor
+    namespace: ops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: monitor-read
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: monitor-read
+  namespace: production
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cluster-monitor
+  namespace: production
+subjects:
+  - kind: ServiceAccount
+    name: cluster-monitor
+    namespace: ops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: monitor-read
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: monitor-state-writer
+  namespace: ops
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["monitor-state"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cluster-monitor-state
+  namespace: ops
+subjects:
+  - kind: ServiceAccount
+    name: cluster-monitor
+    namespace: ops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: monitor-state-writer
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ecr-refresh-state-writer
+  namespace: ops
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["ecr-refresh-state"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ecr-refresh-state
+  namespace: ops
+subjects:
+  - kind: ServiceAccount
+    name: ecr-secret-refresher
+    namespace: ops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ecr-refresh-state-writer
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ecr-secret-refresher
+  namespace: staging
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["ecr-registry"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ecr-secret-refresher
+  namespace: staging
+subjects:
+  - kind: ServiceAccount
+    name: ecr-secret-refresher
+    namespace: ops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ecr-secret-refresher
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ecr-secret-refresher
+  namespace: production
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["ecr-registry"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ecr-secret-refresher
+  namespace: production
+subjects:
+  - kind: ServiceAccount
+    name: ecr-secret-refresher
+    namespace: ops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ecr-secret-refresher
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ecr-secret-refresher
+  namespace: ops
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["ecr-registry"]
+    verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ecr-refresh-image-secret
+  namespace: ops
+subjects:
+  - kind: ServiceAccount
+    name: ecr-secret-refresher
+    namespace: ops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ecr-secret-refresher
