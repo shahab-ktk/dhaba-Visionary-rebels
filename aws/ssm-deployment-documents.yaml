@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Fixed, parameter-validated SSM commands for Dhaba kind deployments.
+Parameters:
+  AwsAccount:
+    Type: String
+    AllowedPattern: "^[0-9]{12}$"
+  AwsRegion:
+    Type: String
+    Default: ap-southeast-2
+    AllowedPattern: "^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$"
+  Team:
+    Type: String
+    Default: visionary-rebel
+    AllowedPattern: "^[a-z0-9-]+$"
+  StagingHost:
+    Type: String
+    Default: dhaba-staging.example.com
+    AllowedPattern: "^[A-Za-z0-9.-]+$"
+  ProductionHost:
+    Type: String
+    Default: dhaba-production.example.com
+    AllowedPattern: "^[A-Za-z0-9.-]+$"
+Resources:
+  DhabaKindDeployStaging:
+    Type: AWS::SSM::Document
+    Properties:
+      Name: DhabaKindDeployStaging
+      DocumentType: Command
+      Content:
+        schemaVersion: "2.2"
+        description: Deploy an allowlisted Dhaba image set to staging only.
+        parameters:
+          ImageTag:
+            type: String
+            allowedPattern: "^[a-f0-9]{40}$"
+          Services:
+            type: String
+            allowedPattern: "^(web|menu-api|orders-api|kitchen-worker|stats-api|postgres|redis|ops-monitor)(,(web|menu-api|orders-api|kitchen-worker|stats-api|postgres|redis|ops-monitor))*$"
+        mainSteps:
+          - action: aws:runShellScript
+            name: deployStaging
+            inputs:
+              timeoutSeconds: "3600"
+              runCommand:
+                - !Sub >-
+                  sudo -u ubuntu -H env AWS_ACCOUNT=${AwsAccount} AWS_REGION=${AwsRegion}
+                  TEAM=${Team} KIND_STAGING_HOST=${StagingHost}
+                  /usr/local/sbin/dhaba-kind-deploy staging {{ ImageTag }} {{ Services }}
+  DhabaKindDeployProduction:
+    Type: AWS::SSM::Document
+    Properties:
+      Name: DhabaKindDeployProduction
+      DocumentType: Command
+      Content:
+        schemaVersion: "2.2"
+        description: Deploy an allowlisted Dhaba image set to production only.
+        parameters:
+          ImageTag:
+            type: String
+            allowedPattern: "^[a-f0-9]{40}$"
+          Services:
+            type: String
+            allowedPattern: "^(web|menu-api|orders-api|kitchen-worker|stats-api|postgres|redis|ops-monitor)(,(web|menu-api|orders-api|kitchen-worker|stats-api|postgres|redis|ops-monitor))*$"
+        mainSteps:
+          - action: aws:runShellScript
+            name: deployProduction
+            inputs:
+              timeoutSeconds: "3600"
+              runCommand:
+                - !Sub >-
+                  sudo -u ubuntu -H env AWS_ACCOUNT=${AwsAccount} AWS_REGION=${AwsRegion}
+                  TEAM=${Team} KIND_PRODUCTION_HOST=${ProductionHost}
+                  /usr/local/sbin/dhaba-kind-deploy production {{ ImageTag }} {{ Services }}

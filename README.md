@@ -30,90 +30,142 @@ See [docs/BUILD-AND-PUSH.md](docs/BUILD-AND-PUSH.md). Short version:
     scripts/create-ecr-repos.sh      # once
     scripts/build-and-push.sh        # build, tag with the commit, push
 
-## Deploy to EKS
+## Deploy to a single-node kind cluster on EC2
 
-Kustomize manifests are in `k8s/base/` with staging and production overlays. The
-current EKS cluster is `dhaba-orders` in account `940482421289`, region
-`eu-north-1`. The worker-node IAM role has ECR pull-only access, so Kubernetes
-does not need a long-lived ECR image-pull secret or a token-refresh CronJob.
+The application images are built and scanned by GitHub Actions, then pushed to
+private ECR repositories. The EC2 host runs kind; deployments are sent through
+AWS Systems Manager (SSM), without SSH keys. The cluster has three project
+namespaces: `staging`, `production`, and `ops`. Kubernetes system namespaces
+such as `default` and `kube-system` are separate.
 
-Configure kubectl and create application secrets directly in both namespaces.
-These commands generate credentials locally; never commit or share them:
+### EC2 prerequisites
 
-    aws eks update-kubeconfig --profile afnan-personal --region eu-north-1 --name dhaba-orders
-    for namespace in staging production; do
-      kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl apply -f -
-      DB_PASSWORD="$(openssl rand -hex 32)"
-      APP_KEY="base64:$(openssl rand -base64 32)"
-      kubectl create secret generic dhaba-db \
-        --namespace "$namespace" \
-        --from-literal=DB_USER=dhaba \
-        --from-literal=DB_PASSWORD="$DB_PASSWORD" \
-        --dry-run=client -o yaml | kubectl apply -f -
-      kubectl create secret generic dhaba-app \
-        --namespace "$namespace" \
-        --from-literal=APP_KEY="$APP_KEY" \
-        --dry-run=client -o yaml | kubectl apply -f -
-      unset DB_PASSWORD APP_KEY
-    done
+Attach an instance role that includes `AmazonEC2ContainerRegistryReadOnly` and
+`AmazonSSMManagedInstanceCore`. Use three narrowly scoped IAM users for GitHub Actions because OIDC is
+unavailable: one ECR publisher, one staging deployer, and one production
+deployer. The deploy users can call only their matching fixed SSM document on
+this instance. The instance must appear as an online managed node in Systems
+Manager. The documents are defined in `aws/ssm-deployment-documents.yaml` and
+accept only a commit SHA and allowlisted service names, not shell commands.
 
-The EBS CSI driver is installed as an EKS add-on. Install the NGINX Ingress
-controller and cert-manager, then deploy with:
+Install Docker, AWS CLI v2, kubectl, kind, and Helm on Ubuntu. The Ubuntu user
+that owns the kind cluster must be able to run Docker and kubectl. For kind's
+current installation commands see the [kind Quick Start](https://kind.sigs.k8s.io/docs/user/quick-start). Create the cluster with
+`kind/kind.yaml`, which maps host ports 80 and 443 to the kind node's ingress
+NodePorts. Allow inbound 80/443 in the EC2 security group only from intended
+clients; restrict SSH to your own IP.
 
+Install the kind provider for ingress-nginx and the Rancher local-path
+provisioner. The base storage class is `local-path`; Postgres and Redis data
+will reside on this EC2 instance and need independent backups. Do not install
+the EKS EBS CSI driver, AWS load balancer controller, or cert-manager for this
+HTTP-only kind setup.
+
+Create the cluster and ingress (run as `ubuntu`):
+
+    kind create cluster --name dhaba --config kind/kind.yaml
+    kubectl cluster-info --context kind-dhaba
+    kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.37/deploy/local-path-storage.yaml
     helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
     helm repo update
     helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
       --namespace ingress-nginx --create-namespace \
-      --set controller.service.type=LoadBalancer \
-      --set-string 'controller.service.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-scheme=internet-facing'
+      --set controller.service.type=NodePort \
+      --set controller.service.nodePorts.http=30080 \
+      --set controller.service.nodePorts.https=30443
+    kubectl -n ingress-nginx rollout status deployment/ingress-nginx-controller --timeout=180s
 
-    helm repo add jetstack https://charts.jetstack.io
-    helm repo update
-    helm upgrade --install cert-manager jetstack/cert-manager \
-      --version v1.21.3 --namespace cert-manager --create-namespace \
-      --set crds.enabled=true
-    kubectl apply -f k8s/cert-manager/cluster-issuer.yaml
-    kubectl apply -k k8s/overlays/staging
-    kubectl get pods,pvc -n staging -o wide
+Install the deployment helper on this host from the checked-out repository:
 
-The worker nodes are `t3.small` instances with an 11-pod limit. The current
-cluster runs staging and production; production has separate database and Redis
-volumes. Each environment gets a static public IPv4 address via an Elastic-IP
-backed Network Load Balancer in one Availability Zone.
-The app has no authentication and its order API returns customer names and
-order details, so do not use real customer data until authentication is added.
-The load balancers and worker nodes incur ongoing AWS charges.
+    sudo install -o root -g root -m 0755 scripts/deploy-kind.sh /usr/local/sbin/dhaba-kind-deploy
 
-    kubectl apply -k k8s/overlays/production
+The ingress-nginx controller Service uses NodePorts 30080/30443; `kind/kind.yaml` maps those ports to host 80/443. Before applying the overlays, replace their example hostnames with DNS names pointing to the EC2 public IP. Configure the same hostnames as the SSM document stack parameters. The CI smoke check reaches `127.0.0.1` on EC2 and supplies the matching Host header.
 
-Set the DuckDNS A records to these Elastic IPs:
+### Bootstrap Kubernetes
 
-| Environment | Hostname | Static IPv4 |
-|---|---|---|
-| Staging | `dhaba-staging.duckdns.org`, `visionaryrebels-staging.duckdns.org` | `51.21.36.232` |
-| Production | `dhaba-production.duckdns.org`, `visionaryrebels-production.duckdns.org` | `56.228.87.179` |
+From the repository root on EC2, set the ECR values, then create the three
+project namespaces, per-namespace pull secrets, application secrets, RBAC,
+monitoring resources, and both app overlays:
 
-These web Services currently expose HTTP on port 80. The cert-manager
-configuration for the shared Ingress controller does not terminate TLS on
-these direct NLB endpoints; add both aliases to the matching DuckDNS IP record
-and do not use HTTPS until TLS is configured for them.
-Each NLB is in one Availability Zone to provide exactly one IP, so an outage in
-that zone will interrupt the corresponding environment.
+    export AWS_ACCOUNT=542811240173
+    export AWS_REGION=ap-southeast-2
+    export TEAM=visionary-rebel
+    aws cloudformation deploy --template-file aws/ssm-deployment-documents.yaml \
+      --stack-name dhaba-kind-deploy-documents \
+      --parameter-overrides AwsAccount="$AWS_ACCOUNT" AwsRegion="$AWS_REGION" \
+        Team="$TEAM" StagingHost=dhaba-staging.example.com \
+        ProductionHost=dhaba-production.example.com
+    scripts/bootstrap-kind.sh
 
-The overlays pin application images to the verified commit tag. Update the
-`images` and `APP_VERSION` values in both overlays when deploying a later
-verified release.
+The pull secret is namespace-scoped. The bootstrap creates `ecr-registry` in
+`staging`, `production`, and `ops`; `ops` needs it to pull the monitoring
+image. The `ops/ecr-secret-refresh` CronJob gets ECR credentials from the EC2
+instance role through IMDSv2 and refreshes all three secrets every six hours.
+Keep EC2 metadata enabled, require IMDSv2, and set the metadata response hop
+limit to 2 so the nested kind node can reach it. Any pod that can reach IMDS can
+request the instance role credentials, so keep that role limited to ECR read and
+SSM managed-node permissions. The refresh ServiceAccount can patch only the named `ecr-registry`
+secret in those namespaces; it cannot read application secrets.
 
-For local smoke testing, forward the Ingress controller to localhost and send
-the staging host header:
+The ECR refresh job uses `hostNetwork` so it can reach the EC2 instance metadata
+endpoint. Restrict IMDS access at the instance/network layer and do not run
+untrusted workloads in this cluster.
 
-    kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 8080:80
-    curl -H 'Host: dhaba-staging.duckdns.org' http://127.0.0.1:8080/
+### Deployment identities and flow
 
-Each environment keeps separate database and Redis volumes. Do not copy a
-production secret into Git or use the staging database for production. The
-Ingress controller routes only web traffic; APIs and databases remain internal
-Services.
+`k8s/rbac/pipeline-access.yaml` creates a `pipeline-deployer` ServiceAccount
+in `staging`, with a Role and RoleBinding in each of `staging` and
+`production`. It can patch only the app Deployments, StatefulSets, and
+`dhaba-config` ConfigMap in those namespaces. It has no RoleBinding in `ops`
+or cluster-wide permissions. The host deployment helper creates a short-lived
+ServiceAccount token, switches to that identity, updates only changed image
+tags, waits for rollout, and runs an HTTP smoke check.
+
+GitHub Actions CI checks and scans changed images, pushes them to ECR, then
+uses SSM to deploy that commit to staging. A successful staging rollout and
+smoke check unlocks the production job. Configure a required reviewer on the
+GitHub Actions `production` environment under **Settings → Environments**;
+that environment approval is the production gate. Configure these repository
+variables:
+
+| Variable | Value |
+|---|---|
+| `AWS_ACCOUNT` | `542811240173` |
+| `AWS_REGION` | `ap-southeast-2` |
+| `TEAM` | `visionary-rebel` |
+| `KIND_INSTANCE_ID` | EC2 instance ID running kind |
+
+The workflow uses repository-level `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY` secrets for ECR publishing. Add environment-level
+secrets with those same names to `staging` and `production`, using keys from the
+matching deploy IAM users. Environment secrets override repository secrets in
+the deploy jobs, so the staging key cannot call the production SSM document.
+Require reviewers on `production`. The SSM host uses its administrator
+kubeconfig only to mint a short-lived `pipeline-deployer` token; all Kubernetes
+mutations use that restricted identity.
+
+### Ops monitoring (C16)
+
+The `ops` namespace has a separate `cluster-monitor` ServiceAccount and a
+CronJob that runs three checks every minute: workload readiness, PostgreSQL
+readiness, and Redis readiness across staging and production. Its namespace
+Its Roles in the app namespaces are read-only; in `ops` it can update only
+`monitor-state`. Database checks use network readiness probes and do not receive
+permission to exec into app pods or read database credentials. The ECR refresher has its own ServiceAccount, can
+update only the named ECR pull secrets and `ops/ecr-refresh-state`, and cannot
+read application secrets. Neither ops identity is reused by the deployment
+pipeline.
+
+Monitoring scripts are mounted from a ConfigMap generated by `k8s/ops`. When
+they change, an ops administrator applies `kubectl apply -k k8s/ops`; the
+pipeline cannot change anything in `ops`. If `ops-monitor/Dockerfile` changes,
+CI builds a new utility image, and an ops administrator updates the
+`cluster-monitor` CronJob image to that commit SHA after it is pushed.
+
+The single EC2 instance is a learning/small workload setup, not a highly
+available production cluster. kind and local-path volumes share the instance's
+failure boundary. Back up Postgres data and do not use real customer data until
+authentication is added.
 
 ## Environment variables
 
@@ -127,17 +179,11 @@ Services.
 
 Kubernetes details:
 
-- Keep the Service names `menu-api`, `orders-api`, `stats-api`, `postgres`, `redis`. Nginx and the defaults rely on them.
-- In `orders-api`, set `POD_NAME` from the downward API (`metadata.name`) so `/info` shows the pod.
-- `kitchen-worker` has no port. For a liveness probe use an exec probe: `test -n "$(find /tmp/kitchen-heartbeat -mmin -1)"`.
-- Use a StatefulSet (or a Deployment with a PVC) for `postgres` and `redis`.
-- EKS node IAM permissions provide short-lived ECR pulls; no static AWS keys or
-  12-hour ECR token need to live in Kubernetes.
-- `k8s/overlays/production` runs two replicas of every stateless service and
-  spreads them across nodes; staging uses one replica per service. Deployments
-  use no-surge rolling updates to avoid requiring extra pod slots during rollout.
-- The Ingress objects expect an `nginx` IngressClass. Install an Ingress
-  controller before expecting the hostnames to resolve to the application.
+- Keep the Service names `menu-api`, `orders-api`, `stats-api`, `postgres`, and `redis`; the web proxy relies on them.
+- `postgres` and `redis` use separate StatefulSets and local-path claims in each namespace. Back up those host-local volumes.
+- Both app overlays use one replica per service for the single-node kind cluster.
+- The Ingress objects expect an `nginx` IngressClass. Configure ingress-nginx as a NodePort Service on 30080/30443 and use the host port mappings in `kind/kind.yaml`.
+- ECR pull credentials are refreshed by the `ops` CronJob every six hours. It uses the EC2 instance role and updates only `ecr-registry` in `staging`, `production`, and `ops`.
 
 ## Changes from the first draft
 
@@ -151,4 +197,4 @@ Kubernetes details:
 
 ## Continuous integration
 
-The GitHub Actions workflow in `.github/workflows/ci.yml` runs checks on pull requests and pushes to `main`, validates both Kustomize overlays, and after all checks pass on `main`, builds, scans, and pushes only changed images to personal-account ECR using GitHub OIDC. See [docs/BUILD-AND-PUSH.md](docs/BUILD-AND-PUSH.md) for the required repository variables and AWS role trust setup.
+The GitHub Actions workflow in `.github/workflows/ci.yml` runs checks on pull requests and pushes to `main`, validates the app and ops manifests, then builds, scans, and pushes changed images to ECR using scoped IAM user keys stored as GitHub secrets. It deploys changed app images to staging through SSM, runs a smoke check, and waits for approval on the protected `production` environment before promotion. The Kubernetes deployment identity is scoped to `staging` and `production`; ops uses separate monitoring and ECR refresh identities. See [docs/BUILD-AND-PUSH.md](docs/BUILD-AND-PUSH.md) for the IAM policies and GitHub secret setup.
