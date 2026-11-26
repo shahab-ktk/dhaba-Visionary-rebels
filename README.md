@@ -70,7 +70,7 @@ Create the cluster and ingress (run as `ubuntu`):
     helm repo update
     helm upgrade --install traefik traefik/traefik \
       --namespace traefik --create-namespace \
-      --set service.type=NodePort \
+      --set service.spec.type=NodePort \
       --set ports.web.nodePort=30080 \
       --set ports.websecure.nodePort=30443 \
       --set providers.kubernetesIngress.enabled=true \
