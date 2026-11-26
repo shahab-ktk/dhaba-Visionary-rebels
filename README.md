@@ -55,7 +55,7 @@ current installation commands see the [kind Quick Start](https://kind.sigs.k8s.i
 NodePorts. Allow inbound 80/443 in the EC2 security group only from intended
 clients; restrict SSH to your own IP.
 
-Install the kind provider for ingress-nginx and the Rancher local-path
+Install Traefik as the ingress controller and the Rancher local-path
 provisioner. The base storage class is `local-path`; Postgres and Redis data
 will reside on this EC2 instance and need independent backups. Do not install
 the EKS EBS CSI driver, AWS load balancer controller, or cert-manager for this
@@ -66,20 +66,24 @@ Create the cluster and ingress (run as `ubuntu`):
     kind create cluster --name dhaba --config kind/kind.yaml
     kubectl cluster-info --context kind-dhaba
     kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.37/deploy/local-path-storage.yaml
-    helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+    helm repo add traefik https://traefik.github.io/charts
     helm repo update
-    helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-      --namespace ingress-nginx --create-namespace \
-      --set controller.service.type=NodePort \
-      --set controller.service.nodePorts.http=30080 \
-      --set controller.service.nodePorts.https=30443
-    kubectl -n ingress-nginx rollout status deployment/ingress-nginx-controller --timeout=180s
+    helm upgrade --install traefik traefik/traefik \
+      --namespace traefik --create-namespace \
+      --set service.type=NodePort \
+      --set ports.web.nodePort=30080 \
+      --set ports.websecure.nodePort=30443 \
+      --set providers.kubernetesIngress.enabled=true \
+      --set ingressClass.enabled=true \
+      --set ingressClass.name=traefik \
+      --set ingressClass.isDefaultClass=false
+    kubectl -n traefik rollout status deployment/traefik --timeout=180s
 
 Install the deployment helper on this host from the checked-out repository:
 
     sudo install -o root -g root -m 0755 scripts/deploy-kind.sh /usr/local/sbin/dhaba-kind-deploy
 
-The ingress-nginx controller Service uses NodePorts 30080/30443; `kind/kind.yaml` maps those ports to host 80/443. Before applying the overlays, replace their example hostnames with DNS names pointing to the EC2 public IP. Configure the same hostnames as the SSM document stack parameters. The CI smoke check reaches `127.0.0.1` on EC2 and supplies the matching Host header.
+The Traefik Service uses NodePorts 30080/30443; `kind/kind.yaml` maps those ports to host 80/443. Before applying the overlays, replace their example hostnames with DNS names pointing to the EC2 public IP. Configure the same hostnames as the SSM document stack parameters. The CI smoke check reaches `127.0.0.1` on EC2 and supplies the matching Host header.
 
 ### Bootstrap Kubernetes
 
@@ -182,7 +186,7 @@ Kubernetes details:
 - Keep the Service names `menu-api`, `orders-api`, `stats-api`, `postgres`, and `redis`; the web proxy relies on them.
 - `postgres` and `redis` use separate StatefulSets and local-path claims in each namespace. Back up those host-local volumes.
 - Both app overlays use one replica per service for the single-node kind cluster.
-- The Ingress objects expect an `nginx` IngressClass. Configure ingress-nginx as a NodePort Service on 30080/30443 and use the host port mappings in `kind/kind.yaml`.
+- The Ingress objects expect a `traefik` IngressClass. Configure Traefik as a NodePort Service on 30080/30443 and use the host port mappings in `kind/kind.yaml`.
 - ECR pull credentials are refreshed by the `ops` CronJob every six hours. It uses the EC2 instance role and updates only `ecr-registry` in `staging`, `production`, and `ops`.
 
 ## Changes from the first draft

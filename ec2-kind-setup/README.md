@@ -28,16 +28,26 @@ Run from this directory as the `ubuntu` user:
 kind create cluster --name dhaba --config kind/kind.yaml
 kubectl cluster-info --context kind-dhaba
 kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.37/deploy/local-path-storage.yaml
+helm repo add traefik https://traefik.github.io/charts
+helm repo update
+helm upgrade --install traefik traefik/traefik \
+  --namespace traefik --create-namespace \
+  --set service.type=NodePort \
+  --set ports.web.nodePort=30080 \
+  --set ports.websecure.nodePort=30443 \
+  --set providers.kubernetesIngress.enabled=true \
+  --set ingressClass.enabled=true \
+  --set ingressClass.name=traefik \
+  --set ingressClass.isDefaultClass=false
+kubectl -n traefik rollout status deployment/traefik --timeout=180s
 ```
 
 That provisioner creates the `local-path` StorageClass used by Postgres and
 Redis. The app manifests use that existing class instead of trying to change
 its immutable reclaim policy.
 
-The manifests currently use IngressClass `nginx`. The ingress-nginx project was
-retired in March 2026, so migrate these Ingress manifests to a maintained
-controller before exposing this cluster publicly. The EC2 port mappings in
-`kind/kind.yaml` map host ports 80/443 to kind node ports 30080/30443.
+The manifests use the maintained Traefik IngressClass. The Traefik Service uses
+NodePorts 30080/30443, which `kind/kind.yaml` maps to EC2 host ports 80/443.
 
 ## Install the SSM helper and bootstrap
 
