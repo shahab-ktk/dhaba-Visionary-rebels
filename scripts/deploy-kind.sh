@@ -69,5 +69,6 @@ kubectl --kubeconfig "$temporary_kubeconfig" -n "$namespace" \
     patch configmap dhaba-config --type merge -p "{\"data\":{\"APP_VERSION\":\"${tag}\"}}"
 host=$KIND_STAGING_HOST
 [[ "$namespace" == production ]] && host=$KIND_PRODUCTION_HOST
-curl --fail --silent --show-error --retry 20 --retry-connrefused --retry-delay 3 \
+curl --fail --silent --show-error --retry 20 --retry-connrefused \
+    --retry-all-errors --retry-delay 3 --retry-max-time 90 \
     -H "Host: ${host}" http://127.0.0.1/healthz
