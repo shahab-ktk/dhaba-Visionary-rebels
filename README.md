@@ -94,7 +94,3 @@ Deployment requires AWS resources, a running kind cluster, ECR repositories, and
 - Application pods do not need Kubernetes API access and have automatic ServiceAccount token mounting disabled. Monitoring and secret-refresh jobs use separate ServiceAccounts with namespace-scoped permissions.
 - Restrict EC2 inbound access to the ports and source addresses required by the deployment. Use non-production data in this demo environment.
 - Review repository history and GitHub Actions configuration before making a repository public; deleting a secret from the current README does not remove it from Git history.
-
-## License
-
-No `LICENSE` file is currently included. Public visibility alone does not grant permission to reuse or redistribute this project. Add a license file if you want to grant those rights.
