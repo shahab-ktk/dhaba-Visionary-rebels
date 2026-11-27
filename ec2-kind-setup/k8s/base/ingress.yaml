@@ -4,10 +4,6 @@ metadata:
   name: dhaba
 spec:
   ingressClassName: traefik
-  tls:
-    - hosts:
-        - dhaba.test
-      secretName: dhaba-tls
   rules:
     - host: dhaba.test
       http:

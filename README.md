@@ -50,7 +50,7 @@ The deployment uses three project namespaces:
 
 Kubernetes system namespaces such as `default` and `kube-system` are managed by the cluster and are not project environments. Staging and production use the shared Kustomize base with a small environment overlay for namespace-specific settings.
 
-The EC2 setup uses kind, Traefik, and the local-path provisioner. Traefik can terminate HTTPS for ingress hosts when TLS certificates and secrets are configured. Because this is a single-node cluster, the app and its local persistent volumes share the EC2 instance's failure boundary; it is intended for learning, demos, and small workloads rather than high availability.
+The EC2 setup uses kind, Traefik, cert-manager, and the local-path provisioner. The staging and production overlays route `visionary-rebel-staging.duckdns.org` and `visionary-rebel-production.duckdns.org` through Traefik and request TLS certificates from Let's Encrypt. Because this is a single-node cluster, the app and its local persistent volumes share the EC2 instance's failure boundary; it is intended for learning, demos, and small workloads rather than high availability.
 
 ## CI/CD
 
@@ -91,6 +91,7 @@ Deployment requires AWS resources, a running kind cluster, ECR repositories, and
 - Do not commit AWS access keys, DuckDNS tokens, private keys, database passwords, `.env` files, or populated Kubernetes Secret manifests.
 - Store workflow credentials in GitHub Actions Secrets and create application secrets through the documented bootstrap process.
 - Keep the ECR publisher, staging deployer, production deployer, EC2 instance role, and Kubernetes ServiceAccounts separate and narrowly scoped.
+- Application pods do not need Kubernetes API access and have automatic ServiceAccount token mounting disabled. Monitoring and secret-refresh jobs use separate ServiceAccounts with namespace-scoped permissions.
 - Restrict EC2 inbound access to the ports and source addresses required by the deployment. Use non-production data in this demo environment.
 - Review repository history and GitHub Actions configuration before making a repository public; deleting a secret from the current README does not remove it from Git history.
 

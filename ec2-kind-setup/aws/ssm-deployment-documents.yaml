@@ -14,11 +14,11 @@ Parameters:
     AllowedPattern: "^[a-z0-9-]+$"
   StagingHost:
     Type: String
-    Default: dhaba-staging.example.com
+    Default: visionary-rebel-staging.duckdns.org
     AllowedPattern: "^[A-Za-z0-9.-]+$"
   ProductionHost:
     Type: String
-    Default: dhaba-production.example.com
+    Default: visionary-rebel-production.duckdns.org
     AllowedPattern: "^[A-Za-z0-9.-]+$"
 Resources:
   DhabaKindDeployStaging:

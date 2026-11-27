@@ -13,8 +13,8 @@ services_csv=$3
 : "${AWS_ACCOUNT:?set AWS_ACCOUNT}"
 : "${AWS_REGION:?set AWS_REGION}"
 : "${TEAM:?set TEAM}"
-: "${KIND_STAGING_HOST:=dhaba-staging.example.com}"
-: "${KIND_PRODUCTION_HOST:=dhaba-production.example.com}"
+: "${KIND_STAGING_HOST:=visionary-rebel-staging.duckdns.org}"
+: "${KIND_PRODUCTION_HOST:=visionary-rebel-production.duckdns.org}"
 
 registry="${AWS_ACCOUNT}.dkr.ecr.${AWS_REGION}.amazonaws.com/dhaba-${TEAM}"
 source_kubeconfig=${KUBECONFIG:-"${HOME}/.kube/config"}

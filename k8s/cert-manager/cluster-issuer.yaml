@@ -6,8 +6,8 @@ spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
     privateKeySecretRef:
-      name: letsencrypt-prod-account
+      name: letsencrypt-prod-account-key
     solvers:
       - http01:
           ingress:
-            ingressClassName: nginx
+            ingressClassName: traefik

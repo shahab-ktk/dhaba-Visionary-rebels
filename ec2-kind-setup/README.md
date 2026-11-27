@@ -40,6 +40,15 @@ helm upgrade --install traefik traefik/traefik \
   --set ingressClass.name=traefik \
   --set ingressClass.isDefaultClass=false
 kubectl -n traefik rollout status deployment/traefik --timeout=180s
+
+helm upgrade --install cert-manager \
+  oci://quay.io/jetstack/charts/cert-manager \
+  --version v1.21.3 \
+  --namespace cert-manager --create-namespace \
+  --set crds.enabled=true
+kubectl -n cert-manager rollout status deployment/cert-manager --timeout=180s
+kubectl -n cert-manager rollout status deployment/cert-manager-webhook --timeout=180s
+kubectl -n cert-manager rollout status deployment/cert-manager-cainjector --timeout=180s
 ```
 
 That provisioner creates the `local-path` StorageClass used by Postgres and
@@ -48,12 +57,20 @@ its immutable reclaim policy.
 
 The manifests use the maintained Traefik IngressClass. The Traefik Service uses
 NodePorts 30080/30443, which `kind/kind.yaml` maps to EC2 host ports 80/443.
+The ingress overlays use `visionary-rebel-staging.duckdns.org` and
+`visionary-rebel-production.duckdns.org`. Point both DuckDNS records at the
+EC2 public IP and allow inbound TCP 80 and 443 so HTTP-01 certificate
+validation and HTTPS traffic can reach Traefik. The production ClusterIssuer
+is defined in `k8s/cert-manager/cluster-issuer.yaml`; set its optional ACME
+contact email to an address you monitor before applying it. The bootstrap
+script applies the issuer and the ingress overlays after cert-manager is ready.
 
 ## Install the SSM helper and bootstrap
 
 The SSM document stack is deployed separately by an AWS administrator. It must
 already contain the correct staging and production hostnames, matching DNS and
-the Ingress host values in `k8s/overlays/`.
+the Ingress host values in `k8s/overlays/`. The CloudFormation template defaults
+to the DuckDNS hostnames above.
 
 Install the deployment helper, then bootstrap the namespaces and resources:
 
