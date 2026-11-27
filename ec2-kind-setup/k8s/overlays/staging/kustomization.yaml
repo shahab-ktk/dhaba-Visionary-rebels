@@ -14,11 +14,19 @@ patches:
       kind: Ingress
       name: dhaba
     patch: |-
+      - op: add
+        path: /metadata/annotations
+        value:
+          cert-manager.io/cluster-issuer: letsencrypt-prod
       - op: replace
         path: /spec/rules/0/host
-        value: dhaba-staging.example.com
-      - op: remove
+        value: visionary-rebel-staging.duckdns.org
+      - op: add
         path: /spec/tls
+        value:
+          - hosts:
+              - visionary-rebel-staging.duckdns.org
+            secretName: dhaba-staging-tls
   - target:
       version: v1
       kind: ConfigMap

@@ -21,9 +21,9 @@ No Docker Compose. Each service is built from its own Dockerfile, tagged with th
 
 ## 2. Set the variables
 
-    export TEAM=visionary-rebel
-    export AWS_ACCOUNT=542811240173
-    export AWS_REGION=ap-southeast-2
+    export TEAM="<your-team>"
+    export AWS_ACCOUNT="<your-12-digit-account-id>"
+    export AWS_REGION="<your-aws-region>"
     export AWS_PROFILE=afnan-personal
     export REGISTRY=$AWS_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com
     export TAG=$(git rev-parse HEAD)
@@ -119,9 +119,9 @@ Configure the non-secret **repository variables** under **Settings → Secrets a
 
 | Variable | Value |
 |---|---|
-| `TEAM` | `visionary-rebel` |
-| `AWS_REGION` | `ap-southeast-2` |
-| `AWS_ACCOUNT` | `542811240173` |
+| `TEAM` | Your ECR repository team/prefix |
+| `AWS_REGION` | Your AWS Region |
+| `AWS_ACCOUNT` | Your 12-digit AWS account ID |
 | `KIND_INSTANCE_ID` | EC2 instance ID running kind |
 
 The workflow uses three IAM users because OIDC is unavailable. Their inline policy templates are in `aws/policies/`: `ecr-publish.json`, `staging-deploy.json`, and `production-deploy.json`. Replace the `REGION`, `ACCOUNT_ID`, `TEAM`, and `INSTANCE_ID` placeholders before attaching each policy. Create the access keys and attach the policies from an AWS administrator session; do not attach these policies to the EC2 instance role.
@@ -172,10 +172,10 @@ untrusted workloads on this cluster.
 Run these commands from a trusted admin shell with permission to manage IAM users and inline policies. Set the values first:
 
 ```bash
-export AWS_ACCOUNT=542811240173
-export AWS_REGION=ap-southeast-2
-export TEAM=visionary-rebel
-export KIND_INSTANCE_ID=i-0123456789abcdef0
+export AWS_ACCOUNT="<your-12-digit-account-id>"
+export AWS_REGION="<your-aws-region>"
+export TEAM="<your-team>"
+export KIND_INSTANCE_ID="<your-ec2-instance-id>"
 
 policy_dir=$(mktemp -d)
 trap 'rm -rf "$policy_dir"' EXIT

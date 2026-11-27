@@ -3,11 +3,7 @@ kind: Ingress
 metadata:
   name: dhaba
 spec:
-  ingressClassName: nginx
-  tls:
-    - hosts:
-        - dhaba.test
-      secretName: dhaba-tls
+  ingressClassName: traefik
   rules:
     - host: dhaba.test
       http:

@@ -30,6 +30,7 @@ for namespace in staging production; do
 done
 
 kubectl apply -f k8s/rbac/pipeline-access.yaml
+kubectl apply -f k8s/cert-manager/cluster-issuer.yaml
 kubectl apply -f k8s/ops/access.yaml
 kubectl apply -k k8s/ops
 monitor_tag=${OPS_MONITOR_TAG:-$(git rev-parse HEAD)}

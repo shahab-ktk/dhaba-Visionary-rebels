@@ -15,6 +15,7 @@ spec:
       labels:
         app: postgres
     spec:
+      automountServiceAccountToken: false
       terminationGracePeriodSeconds: 30
       imagePullSecrets:
         - name: ecr-registry
@@ -101,6 +102,7 @@ spec:
       labels:
         app: redis
     spec:
+      automountServiceAccountToken: false
       terminationGracePeriodSeconds: 30
       imagePullSecrets:
         - name: ecr-registry
