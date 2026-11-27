@@ -60,9 +60,9 @@ Install the deployment helper, then bootstrap the namespaces and resources:
 ```bash
 sudo install -o root -g root -m 0755 scripts/deploy-kind.sh /usr/local/sbin/dhaba-kind-deploy
 
-export AWS_ACCOUNT=542811240173
-export AWS_REGION=ap-southeast-2
-export TEAM=visionary-rebel
+export AWS_ACCOUNT="<your-12-digit-account-id>"
+export AWS_REGION="<your-aws-region>"
+export TEAM="<your-team>"
 scripts/bootstrap-kind.sh
 ```
 
